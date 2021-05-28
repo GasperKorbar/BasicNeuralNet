@@ -175,7 +175,7 @@ public:
 				 		*biasgradient[a] += *deltas[a+1];
 				 	}
 			 	}
-			 	update(epochs);
+			 	update(i);
 			 }
 			 writeNNtofile("C:\\projects\\ML\\NN\\weights.txt");
 			 std::cout << std::endl;
