@@ -24,7 +24,7 @@ double box_muller(double mu = 0, double sigma = 1){
 // tttNN copied from NN/NN.cpp
 class tttNN{
 protected:
-	std::vector<Matrix<double>*> w, layers, activations, deltas, bias, gradient, biasgradient;
+	std::vector<Matrix<double>*> w, layers, activations, deltas, bias, gradient, biasgradient, accumulategrad, accumulatebias;
 	double alpha;
 public:
 	tttNN(std::vector<int> topology, double alpha = 0.06){
@@ -41,6 +41,8 @@ public:
 				bias.push_back(new Matrix<double>(topology[i], 1));
 				gradient.push_back(new Matrix<double>(topology[i-1], topology[i]));
 				biasgradient.push_back(new Matrix<double>(topology[i], 1));
+				accumulategrad.push_back(new Matrix<double>(topology[i-1], topology[i]));
+				accumulatebias.push_back(new Matrix<double>(topology[i], 1));
 			}
 		}
 
@@ -146,19 +148,22 @@ public:
 	}
 	void update(int epochs){
 		int n = gradient.size();
-		double tmpalpha = alpha*exp(-epochs*0);
+		double tmpalpha = alpha;
+		double decayfact = 0.8;
 		for(int i = 0; i < n; i++){
-			(*w[i]) -= (tmpalpha/64)*(*gradient[i]);
-			(*bias[i]) -= (tmpalpha/64)*(*biasgradient[i]);
+			*accumulategrad[i] = (decayfact * (*accumulategrad[i])) + ((1-decayfact)* (gradient[i]->pointwisemult(*gradient[i]))); 
+			*accumulatebias[i] = (decayfact * (*accumulatebias[i])) + ((1-decayfact)* (bias[i]->pointwisemult(*bias[i]))); 
+			(*w[i]) -= accumulategrad[i]->pointwiseoperator([](double l){return 1/sqrt(l+0.0000001);}).pointwisemult((tmpalpha/128)*(*gradient[i]));
+			(*bias[i]) -= accumulatebias[i]->pointwiseoperator([](double l){return 1/sqrt(l+0.0000001);}).pointwisemult((tmpalpha/128)*(*biasgradient[i]));
 		}
 		//if(epochs>0)w[n-1]->print();
 	}
 	void trainNetwork(std::vector<std::vector<double>> &positions, std::vector<Matrix<double>> &labels, int epochs){
-		int minibatchsize = 64;
+		int minibatchsize = 128;
 		int n = positions.size();
 		std::vector<int> indexes(n);
 		for(int i = 0; i < n; i++) indexes[i] = i;
-		weightinit();
+		// weightinit();
 		for(int i = 0; i < epochs; i++){
 			std::cout << "Epoch: " << i << " test score: " << test(positions, labels)  << " " << lossfunction(positions, labels)<< std::endl; 
 			for(int j = 0; j < n; j++){
@@ -196,6 +201,11 @@ public:
 					file << (*w[i])(j) << " ";
 				}
 			}
+			for(int i = 0; i < (int) w.size(); i++){
+				for(int j = 0; j < bias[i]->size(); j++){
+					file << (*bias[i])(j) << " ";
+				}
+			}
 		} else {
 			std::cout << "file: " << filename << " couldn't open" << std::endl;
 		}
@@ -209,6 +219,11 @@ public:
 					file >> (*w[i])(j);
 				}
 			}
+			for(int i = 0; i < (int) w.size(); i++){
+				for(int j = 0; j < bias[i]->size(); j++){
+					file >> (*bias[i])(j);
+				}
+			}
 		} else {
 			std::cout << "file: " << filename << " couldn't open" << std::endl;
 		}
@@ -218,7 +233,7 @@ public:
 		for(int i = 0; i < (int)layers.size(); i++) {delete layers[i]; delete deltas[i];}
 		for(int i = 0; i < (int)activations.size() && activations[i]!=layers[i]; i++) delete activations[i];
 		for(int i = 0; i < (int)w.size(); i++) {
-			delete w[i]; delete bias[i]; delete gradient[i]; delete biasgradient[i];
+			delete w[i]; delete bias[i]; delete gradient[i]; delete biasgradient[i]; delete accumulategrad[i];delete accumulatebias[i];
 		}
 	}
 
@@ -353,6 +368,7 @@ pair<int, int> bestmove(ttt board, tttNN *player, double rnd){
 		ttt tmpboard(board);
 		tmpboard.move(moves[i].first, moves[i].second);
 		Matrix<double> currscore(player->prediction(tmpboard.retboard()));
+		//(!currscore).print();
 		if(side == -1){
 			double tmp = currscore(0);
 			currscore(0) = currscore(2);
@@ -385,22 +401,23 @@ pair<int, int> bestmove(ttt board, tttNN *player, double rnd){
 	return moves[rand()%(moves.size())];
 }
 
-vector<pair<int, int>> simulategame(tttNN *p1=NULL, tttNN *p2=NULL, double rnd = 0) {
+vector<pair<int, int>> simulategame(tttNN *p1=NULL, tttNN *p2=NULL, double rnd = 0, double rnd1 = 1) {
 	vector<pair<int, int>> history;
 	ttt board;
-
+	double count = 0;
 	while(!board.end()){
 		pair<int, int> move(-1, -1);
 		if(board.getside() == 1 && p1 != NULL)
-			move = bestmove(board, p1, 1);
+			move = bestmove(board, p1, rnd+count*rnd1);
 		else if(board.getside() == -1 && p2 != NULL)
-			move = bestmove(board, p2, 1);
+			move = bestmove(board, p2, rnd+count*rnd1);
 		else {
 			vector<pair<int, int>> moveslist = board.listofmoves();
 			move = moveslist[rand()%(moveslist.size())];
 		}
 		history.push_back(move);
 		board.move(move.first, move.second);
+		count++;
 	}
 
 	return history;
@@ -423,12 +440,16 @@ void gamestats(vector<vector<pair<int, int>>> &games, int player = 1){
 	cout << "loss percent: " << (float)100*stats[2]/n << endl;
 }
 void preparedata(vector<vector<pair<int, int>>> &data, vector<vector<double>>& positions, vector<Matrix<double>> &labels){
+	positions.clear();
+	labels.clear();
 	for(int i = 0; i < (int) data.size(); i++){	
 		ttt board;
 		int m = data[i].size();
 		for(int j = 0; j < m; j++){
+			int side = board.getside();
 			board.move(data[i][j].first, data[i][j].second);
-			positions.push_back(board.retboard());
+			vector<double> vecboard = board.retboard();
+			positions.push_back(vecboard);
 		}
 		for(int j = 0; j < m; j++){
 			Matrix<double> l(3, 1);
@@ -443,37 +464,40 @@ void preparedata(vector<vector<pair<int, int>>> &data, vector<vector<double>>& p
 
 int main(){
 	srand(time(NULL));
-	vector<vector<pair<int, int>>> randomgames;
-	for(int i = 0; i < 10000; i++){
-		randomgames.push_back(simulategame());
-	}
-	vector<vector<double>> positions;
-	vector<Matrix<double>> labels;
-	preparedata(randomgames, positions, labels);
-	tttNN network({9, 200, 125, 75, 25, 3}, 0.0006);
+	tttNN network({9, 200, 125, 75, 25, 3}, 0.003);
 	network.addActivation<ReLU>({1, 2, 3, 4});
 	network.addActivation<Softmax>({5});
-	//network.trainNetwork(positions, labels, 100);
 	network.readNNfromfile(".\\weights.txt");
-
-	// vector<vector<pair<int, int>>> randomgamestest;
+	// vector<vector<pair<int, int>>> randomgames;
 	// for(int i = 0; i < 10000; i++){
-	// 	randomgamestest.push_back(simulategame(&network, NULL,2));
+	// 	randomgames.push_back(simulategame(&network, &network, 0.6, 0));
 	// }
-	// gamestats(randomgamestest);
-	ttt board;
-	while(!board.end()){
-		int x, y;
-		pair<int, int> machinemove = bestmove(board, &network, 10);
-		board.move(machinemove.first, machinemove.second);
-		board.print_ttt();
-		if(board.end()) break;
-		cin >> y >> x;
-		
-		board.move(y, x);
-		board.print_ttt();
+	// vector<vector<double>> positions;
+	// vector<Matrix<double>> labels;
+	// preparedata(randomgames, positions, labels);
+	// network.trainNetwork(positions, labels, 10);
 
+	vector<vector<pair<int, int>>> randomgamestest;
+	for(int i = 0; i < 1000; i++){
+		randomgamestest.push_back(simulategame(&network, NULL,1));
 	}
+	gamestats(randomgamestest);
+
+	// ttt board;
+	// double counter = 1;
+	// while(!board.end()){
+	// 	int x, y;
+	// 	pair<int, int> machinemove = bestmove(board, &network, counter);
+	// 	counter+= 10;
+	// 	board.move(machinemove.first, machinemove.second);
+	// 	board.print_ttt();
+	// 	if(board.end()) break;
+	// 	cin >> y >> x;
+		
+	// 	board.move(y, x);
+	// 	board.print_ttt();
+
+	// }
 
 
 	return 0;

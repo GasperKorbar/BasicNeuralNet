@@ -34,6 +34,8 @@ public:
 	Matrix operator- ();
 	void operator+=(const Matrix&);
 	void operator-=(const Matrix&);
+	Matrix pointwisemult(const Matrix&);
+	Matrix pointwiseoperator(mtype (*)(mtype));
 	Matrix operator! ();
 	void transpose();
 	void clear();
@@ -167,6 +169,25 @@ Matrix<mtype> Matrix<mtype>::operator! (){
 	t = !t;
 	Matrix<mtype> tmp(*this);
 	t = !t;
+	return tmp;
+}
+
+template <class mtype>
+Matrix<mtype> Matrix<mtype>::pointwisemult(const Matrix<mtype> &mtx){
+	assert(mtx.getrows() == this->getrows() && mtx.getcols() == this->getcols());
+	Matrix<mtype> tmp(this->getrows(), this->getcols());
+	for(int i = 0; i < tmp.size(); i++){
+		tmp(i) = mtx(i) * (*this)(i);
+	}
+	return tmp;
+}
+
+template <class mtype>
+Matrix<mtype> Matrix<mtype>::pointwiseoperator(mtype (*func)(mtype)){
+	Matrix<mtype> tmp(this->getrows(), this->getcols());
+	for(int i = 0; i < this->size(); i++){
+		tmp(i) = func((*this)(i)); 
+	}
 	return tmp;
 }
 
