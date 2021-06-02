@@ -4,6 +4,8 @@
 #include <iostream>
 #include <vector>
 #include <assert.h>
+#include <immintrin.h>
+#include "timer.cpp"
 
 template <class mtype>
 class Matrix{	
@@ -28,6 +30,8 @@ public:
 	mtype operator()(int) const;
 	Matrix operator* (const Matrix&);
 	Matrix tmult (const Matrix&);
+	Matrix fastmult_vvt(const Matrix&);
+	Matrix fastmult_mv(const Matrix&);
 	Matrix operator* (mtype);
 	Matrix operator+ (const Matrix&);
 	Matrix operator- (const Matrix&);
@@ -101,6 +105,7 @@ mtype Matrix<mtype>::operator()(int x) const {
 template <class mtype>
 Matrix<mtype> Matrix<mtype>::operator*(const Matrix<mtype> &mtx){
 	assert(this->getcols() == mtx.getrows());
+	if(this->size() > 6000 && mtx.getcols() == 1)return this->fastmult_mv(mtx);
 	Matrix<mtype> tmp(this->getrows(), mtx.getcols());
 	for(int i = 0; i < this->getrows(); i++){
 		for(int j = 0; j < mtx.getcols(); j++){
@@ -129,6 +134,62 @@ Matrix<mtype> Matrix<mtype>::operator*(mtype scalar){
 	return tmp;
 }
 
+template <class mtype>
+Matrix<mtype> Matrix<mtype>::fastmult_mv(const Matrix<mtype> &mtx){
+	assert(this->getcols() == mtx.getrows() && mtx.getcols() == 1);
+	Matrix<mtype> tmp(this->getrows(), mtx.getcols());
+	// int vecsize = 8;
+	int size = this->getcols()%8 == 0 ? this->getcols()/8 : this->getcols()/8+1;
+	union {__m256 a8; float a[8];}u;
+	std::vector<float> extra(8);
+	__m256 vec, m;
+	int overhang = this->getcols()%8;
+	for(int j = 0; j < (int) tmp.size(); j++){
+		u.a8 = _mm256_setzero_ps();
+		for(int i = 0; i < size; i++){
+			if(i == size-1 && this->getcols()%8 != 0){
+				for(int j = 0; j < overhang; j++) extra[j] = mtx(8*i+j);
+				vec = _mm256_loadu_ps(&extra[0]);
+			} else {
+				vec = _mm256_loadu_ps(&mtx.matrix[8*i]);
+			}
+			if(i == size-1 && this->getcols()%8 != 0){
+				for(int k = 0; k < overhang; k++) extra[k] = (*this)(j, 8*i+k);
+				m = _mm256_loadu_ps(&extra[0]);
+			} else{
+				// m = _mm256_loadu_ps(&(*this)(j, 8*i));
+				m = _mm256_setr_ps((*this)(j, 8*i), (*this)(j,8*i+1), (*this)(j,8*i+2), (*this)(j,8*i+3), (*this)(j,8*i+4), (*this)(j,8*i+5), (*this)(j,8*i+6), (*this)(j,8*i+7));
+			}
+			u.a8 = _mm256_add_ps(u.a8, _mm256_mul_ps(m, vec));
+		}
+		float sum = 0;
+		for(int h = 0; h < 8; h++){
+			sum += u.a[h];
+		}
+		tmp(j) += sum;
+	}
+	return tmp;
+}
+
+template <class mtype>
+Matrix<mtype> Matrix<mtype>::fastmult_vvt(const Matrix<mtype> &mtx){
+	assert(this->getcols() == 1 && mtx.getcols() == 1);
+	Matrix<mtype> tmp(this->getrows(), mtx.getrows());
+	__m256 allnumvec, vec2;
+	for(int j = 0; j < (int) this->size(); j++){
+		allnumvec = _mm256_set1_ps((*this)(j));
+		for(int i = 8; i < mtx.size(); i+=8){
+			vec2 = _mm256_loadu_ps(&mtx.matrix[i-8]);
+			_mm256_storeu_ps(&tmp(j, i-8), _mm256_mul_ps(allnumvec, vec2));
+		}
+		if(mtx.size()%8 != 0){
+			int maxoffset = 8*(mtx.size()/8);
+			for(int i = 0; i < mtx.size()%8; i++) tmp(j, maxoffset+i) = (*this)(j) * mtx(maxoffset+i);
+		}
+	}
+	return tmp;
+}
+
 template <class mtype, class stype>
 Matrix<mtype> operator*(stype scalar, Matrix<mtype> mtx){
 	return mtx * (mtype) (scalar);	
@@ -146,7 +207,12 @@ Matrix<mtype> Matrix<mtype>::operator+(const Matrix<mtype> &mtx){
 
 template <class mtype>
 Matrix<mtype> Matrix<mtype>::operator- (const Matrix<mtype> &mtx){
-	return (*this) + (-1*mtx);
+	assert(this->getrows() == mtx.getrows() && this->getcols() == mtx.getcols());
+	Matrix<mtype> tmp(rows, cols);
+	for(int i = 0; i < rows*cols; i++){
+		tmp(i) = (*this)(i) - mtx(i);
+	}
+	return tmp;
 }
 
 template <class mtype>
@@ -156,12 +222,18 @@ Matrix<mtype> Matrix<mtype>::operator- (){
 
 template <class mtype>
 void Matrix<mtype>::operator+=(const Matrix<mtype> &mtx){
-	(*this) = (*this) + mtx; 
+	assert(this->getrows() == mtx.getrows() && this->getcols() == mtx.getcols());
+	for(int i = 0; i < rows*cols; i++){
+		(*this)(i) += mtx(i);
+	}
 }
 
 template <class mtype>
 void Matrix<mtype>::operator-=(const Matrix<mtype> &mtx){
-	(*this) = (*this) - mtx; 
+	assert(this->getrows() == mtx.getrows() && this->getcols() == mtx.getcols());
+	for(int i = 0; i < rows*cols; i++){
+		(*this)(i) -= mtx(i);
+	}
 }
 
 template <class mtype>

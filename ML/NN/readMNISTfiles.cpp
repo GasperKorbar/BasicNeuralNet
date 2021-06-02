@@ -16,7 +16,7 @@ int reverseInt (int i)
 
     return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
 }
-std::vector<std::vector<double>> read_mnist_images(std::string path)
+std::vector<std::vector<float>> read_mnist_images(std::string path)
 {
     std::vector<std::vector<unsigned char>> ret;   
     std::ifstream file(path.c_str(), std::ios::binary);
@@ -52,14 +52,14 @@ std::vector<std::vector<double>> read_mnist_images(std::string path)
         }
     } else std::cout << "file couldn't open" << std::endl;
     file.close();
-    std::vector<std::vector<double>> input(ret.size());
-    for(int i = 0; i < (int) ret.size(); i++) input[i] = std::vector<double>(ret[i].begin(), ret[i].end());
+    std::vector<std::vector<float>> input(ret.size());
+    for(int i = 0; i < (int) ret.size(); i++) input[i] = std::vector<float>(ret[i].begin(), ret[i].end());
     for(int i = 0; i < (int) input.size(); i++)
         for(int a = 0; a < (int) input[0].size(); a++) input[i][a] /= 255;
     return input;
 }
 
-std::vector<Matrix<double>> read_mnist_labels(std::string path)
+std::vector<Matrix<float>> read_mnist_labels(std::string path)
 {
     std::vector<unsigned char> ret;   
     std::ifstream file(path.c_str(), std::ios::binary);
@@ -80,7 +80,7 @@ std::vector<Matrix<double>> read_mnist_labels(std::string path)
         }
     } else std::cout << "file couldn't open" << std::endl;
     file.close();
-    std::vector<Matrix<double>> tmp(ret.size(), Matrix<double>(10, 1));
+    std::vector<Matrix<float>> tmp(ret.size(), Matrix<float>(10, 1));
     for(int i = 0; i <(int) ret.size(); i++){
         tmp[i](ret[i]) = 1;
     }

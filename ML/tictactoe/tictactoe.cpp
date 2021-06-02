@@ -11,12 +11,12 @@
 
 #define PI 3.14159265358979
 
-double box_muller(double mu = 0, double sigma = 1){
-	constexpr double epsilon = std::numeric_limits<double>::epsilon();
-	double u1, u2;
+float box_muller(float mu = 0, float sigma = 1){
+	constexpr float epsilon = std::numeric_limits<float>::epsilon();
+	float u1, u2;
 	do{
-		u1 = (double)rand()/RAND_MAX;
-		u2 = (double)rand()/RAND_MAX;
+		u1 = (float)rand()/RAND_MAX;
+		u2 = (float)rand()/RAND_MAX;
 	} while(u1 <= epsilon);
 	return (sqrt(-2*log(u1))*cos(2*PI*u2) * sigma + mu);
 }
@@ -24,25 +24,25 @@ double box_muller(double mu = 0, double sigma = 1){
 // tttNN copied from NN/NN.cpp
 class tttNN{
 protected:
-	std::vector<Matrix<double>*> w, layers, activations, deltas, bias, gradient, biasgradient, accumulategrad, accumulatebias;
-	double alpha;
+	std::vector<Matrix<float>*> w, layers, activations, deltas, bias, gradient, biasgradient, accumulategrad, accumulatebias;
+	float alpha;
 public:
-	tttNN(std::vector<int> topology, double alpha = 0.06){
+	tttNN(std::vector<int> topology, float alpha = 0.06){
 		assert(topology.size() > 1);
 		srand(time(NULL));
 		int n = topology.size();
 		this->alpha = alpha;
 		for(int i = 0; i < n; i++){
-			layers.push_back(new Matrix<double>(topology[i], 1));
+			layers.push_back(new Matrix<float>(topology[i], 1));
 			activations.push_back(layers[i]);
-			deltas.push_back(new Matrix<double>(topology[i], 1));
+			deltas.push_back(new Matrix<float>(topology[i], 1));
 			if(i > 0) {
-				w.push_back(new Matrix<double>(topology[i-1], topology[i]));
-				bias.push_back(new Matrix<double>(topology[i], 1));
-				gradient.push_back(new Matrix<double>(topology[i-1], topology[i]));
-				biasgradient.push_back(new Matrix<double>(topology[i], 1));
-				accumulategrad.push_back(new Matrix<double>(topology[i-1], topology[i]));
-				accumulatebias.push_back(new Matrix<double>(topology[i], 1));
+				w.push_back(new Matrix<float>(topology[i-1], topology[i]));
+				bias.push_back(new Matrix<float>(topology[i], 1));
+				gradient.push_back(new Matrix<float>(topology[i-1], topology[i]));
+				biasgradient.push_back(new Matrix<float>(topology[i], 1));
+				accumulategrad.push_back(new Matrix<float>(topology[i-1], topology[i]));
+				accumulatebias.push_back(new Matrix<float>(topology[i], 1));
 			}
 		}
 
@@ -54,47 +54,47 @@ public:
 			if(index[i] >= (int)(layers.size()) || index[i] == 0) continue;
 			if(activations[index[i]] != layers[index[i]])
 				delete activations[index[i]];
-			activations[index[i]] = new activationtype(Matrix<double>(layers[index[i]]->getrows(), layers[index[i]]->getcols()));
+			activations[index[i]] = new activationtype(Matrix<float>(layers[index[i]]->getrows(), layers[index[i]]->getcols()));
 		}
 	}
 
 	void weightinit(){
-		double sd;
+		float sd;
 		for(int i = 0; i < (int) layers.size()-1; i++){
-			sd = sqrt((double)2/layers[i]->size());
+			sd = sqrt((float)2/layers[i]->size());
 			for(int j = 0; j < w[i]->size(); j++){
 				(*w[i])(j) = box_muller(0, sd);
 			}
 		}
 	}
 
-	void loadinput(std::vector<double> &input){
+	void loadinput(std::vector<float> &input){
 		assert(input.size() == layers[0]->size());
 		for(int i = 0; i < (int) input.size(); i++)
 			(*layers[0])(i) = input[i];
 	}
 
-	void setlastdeltas(Matrix<double> &label){
+	void setlastdeltas(Matrix<float> &label){
 		(*deltas[deltas.size()-1]) = (*activations[activations.size()-1]) - label;
 	}
 	void forwardProp(){
 		for(int i = 0; i < (int)layers.size()-1; i++){
 			*layers[i+1] = w[i]->tmult(*activations[i]) + *bias[i];
 			if(activations[i+1] != layers[i+1]){
- 				*activations[i+1] = *layers[i+1];
+ 				// *activations[i+1] = *layers[i+1];
 				Activation* tmp = dynamic_cast<Activation*>(activations[i+1]);
-				tmp->applyactivation();
+				tmp->applyactivation(*layers[i+1]);
 			}
 		}
 	}
-	double test(std::vector<std::vector<double>> &positions, std::vector<Matrix<double>> &labels){
+	float test(std::vector<std::vector<float>> &positions, std::vector<Matrix<float>> &labels){
 		int n = positions.size();
-		double correct = 0;
+		float correct = 0;
 		for(int i = 0; i < n; i++){
 			loadinput(positions[i]);	
 			forwardProp();
 			int l = activations.size();
-			double m = (*activations[l-1])(0);
+			float m = (*activations[l-1])(0);
 			int index = 0;
 			for(int a = 0; a < activations[l-1]->size(); a++){
 				if((*activations[l-1])(a) > m){
@@ -106,27 +106,27 @@ public:
 		}
 		return 100*correct/n;
 	}
-	double lossfunction(std::vector<std::vector<double>> &input, std::vector<Matrix<double>> &solution){
-		double sum = 0;
+	float lossfunction(std::vector<std::vector<float>> &input, std::vector<Matrix<float>> &solution){
+		float sum = 0;
 		int l = input.size();
 		int n = layers.size();
 		for(int i = 0; i < l; i++){
 			loadinput(input[i]);
 			forwardProp();
-			Matrix<double> tmp = *activations[n-1];
+			Matrix<float> tmp = *activations[n-1];
 			for(int i = 0; i < tmp.getrows(); i++) tmp(i) = log(tmp(i));
-			double logloss = -solution[i].tmult(tmp)(0);
+			float logloss = -solution[i].tmult(tmp)(0);
 			sum += logloss;
 		}
 		return sum;
 	}
-	Matrix<double> prediction(std::vector<double> vec){
+	Matrix<float> prediction(std::vector<float> vec){
 		loadinput(vec);
 		forwardProp();
 	
 		int l = activations.size();
 		return *activations[l-1];
-		// double m = (*activations[l-1])(0);
+		// float m = (*activations[l-1])(0);
 		// int index = 0;
 		// for(int a = 0; a < activations[l-1]->size(); a++){
 		// 	if((*activations[l-1])(a) > m){
@@ -148,27 +148,29 @@ public:
 	}
 	void update(int epochs){
 		int n = gradient.size();
-		double tmpalpha = alpha;
-		double decayfact = 0.8;
+		float tmpalpha = alpha;
+		float decayfact = 0.8;
 		for(int i = 0; i < n; i++){
 			*accumulategrad[i] = (decayfact * (*accumulategrad[i])) + ((1-decayfact)* (gradient[i]->pointwisemult(*gradient[i]))); 
 			*accumulatebias[i] = (decayfact * (*accumulatebias[i])) + ((1-decayfact)* (bias[i]->pointwisemult(*bias[i]))); 
-			(*w[i]) -= accumulategrad[i]->pointwiseoperator([](double l){return 1/sqrt(l+0.0000001);}).pointwisemult((tmpalpha/128)*(*gradient[i]));
-			(*bias[i]) -= accumulatebias[i]->pointwiseoperator([](double l){return 1/sqrt(l+0.0000001);}).pointwisemult((tmpalpha/128)*(*biasgradient[i]));
+			(*w[i]) -= accumulategrad[i]->pointwiseoperator([](float l) -> float{return 1/sqrt(l+0.0000001);}).pointwisemult((tmpalpha/128)*(*gradient[i]));
+			(*bias[i]) -= accumulatebias[i]->pointwiseoperator([](float l) -> float{return 1/sqrt(l+0.0000001);}).pointwisemult((tmpalpha/128)*(*biasgradient[i]));
 		}
 		//if(epochs>0)w[n-1]->print();
 	}
-	void trainNetwork(std::vector<std::vector<double>> &positions, std::vector<Matrix<double>> &labels, int epochs){
+	void trainNetwork(std::vector<std::vector<float>> &positions, std::vector<Matrix<float>> &labels, int epochs){
 		int minibatchsize = 128;
 		int n = positions.size();
 		std::vector<int> indexes(n);
 		for(int i = 0; i < n; i++) indexes[i] = i;
-		// weightinit();
+		weightinit();
 		for(int i = 0; i < epochs; i++){
+			TIMER ti;
 			std::cout << "Epoch: " << i << " test score: " << test(positions, labels)  << " " << lossfunction(positions, labels)<< std::endl; 
 			for(int j = 0; j < n; j++){
 				std::swap(indexes[j], indexes[rand()%n]);
 			}
+			long long forproptime = 0, bproptime = 0, gradupdatetime = 0;
 			for(int j = 0; j < n; j+=minibatchsize){
 				std::cout << j/minibatchsize << " ";
 			 	for(int i = 0; i < (int)w.size(); i++){
@@ -177,18 +179,26 @@ public:
 				}
 			 	for(int k = j; k < n && k < j+minibatchsize; k++){
 			 		loadinput(positions[indexes[k]]);
-				 	forwardProp();
+				 	{TIMERret forpropr(forproptime); forwardProp();}
 				 	setlastdeltas(labels[indexes[k]]);
-				 	backProp();
+				 	{TIMERret lll(bproptime);backProp();}
 				 	for(int a = 0; a < (int) w.size(); a++){
-				 		*gradient[a] += (*activations[a])*(!(*deltas[a+1]));
-				 		*biasgradient[a] += *deltas[a+1];
+				 		{TIMERret gradupdatett(gradupdatetime);
+				 		// int gradcols = gradient[a]->getcols();
+				 		// for(int h = 0; h < gradient[a]->size(); h++){
+				 		// 	(*gradient[a])(h) += (*activations[a])(h/gradcols)*(*deltas[a+1])(h%gradcols);
+				 		// }
+				 		*gradient[a] += activations[a]->fastmult_vvt(*deltas[a+1]);
+				 		}
+				 		*biasgradient[a] += *deltas[a+1];}
 				 	}
-			 	}
 			 	update(i);
 			 }
 			 writeNNtofile(".\\weights.txt");
 			 std::cout << std::endl;
+			 std::cout << "forproptime " <<forproptime << std::endl;
+			 std::cout << "bproptime " << bproptime << std::endl;
+			 std::cout << "gradupdatetime " << gradupdatetime << std::endl;
 		}
 
 	}
@@ -255,7 +265,7 @@ public:
 	void print_ttt();
 	void playgame(vector<pair<int, int>>);
 	char XorO(int);
-	vector<double> retboard();
+	vector<float> retboard();
 	vector<pair<int, int>> listofmoves();
 };
 
@@ -274,8 +284,8 @@ ttt::ttt(const ttt& copyttt){
 
 int ttt::getside(){ return side; }
 
-vector<double> ttt::retboard(){
-	vector<double> tmp(9);
+vector<float> ttt::retboard(){
+	vector<float> tmp(9);
 	for(int i = 0; i < 9; i++){
 		tmp[i] = board[i/3][i%3];
 	}
@@ -360,21 +370,21 @@ void printlistofmoves(vector<pair<int,int>> l){
 	cout << endl;
 }
 
-pair<int, int> bestmove(ttt board, tttNN *player, double rnd){
+pair<int, int> bestmove(ttt board, tttNN *player, float rnd = -1){
 	vector<pair<int, int>> moves = board.listofmoves();
-	vector<double> scores;
+	vector<float> scores;
 	int side = board.getside();
 	for(int i = 0; i < (int) moves.size(); i++){
 		ttt tmpboard(board);
 		tmpboard.move(moves[i].first, moves[i].second);
-		Matrix<double> currscore(player->prediction(tmpboard.retboard()));
-		//(!currscore).print();
+		Matrix<float> currscore(player->prediction(tmpboard.retboard()));
+		// (!currscore).print();
 		if(side == -1){
-			double tmp = currscore(0);
+			float tmp = currscore(0);
 			currscore(0) = currscore(2);
 			currscore(2) = tmp;
 		}
-		if(currscore(0)-currscore(2) > 0){
+		if(currscore(0)-currscore(1)-currscore(2) > 0){
 			scores.push_back(currscore(0)-currscore(2));
 		} else {
 			scores.push_back(currscore(1)-currscore(2));
@@ -383,7 +393,7 @@ pair<int, int> bestmove(ttt board, tttNN *player, double rnd){
 	int count = moves.size();
 	int index;
 	while(1) {
-		double m = scores[0];
+		float m = scores[0];
 		index = 0;
 		for(int i = 0; i < count; i++){
 			if(scores[i] > m){
@@ -391,7 +401,8 @@ pair<int, int> bestmove(ttt board, tttNN *player, double rnd){
 				index = i;
 			}
 		}
-		if(((double)rand()/RAND_MAX * rnd > 0.5)) return moves[index];
+		// std::cout << index << std::endl;
+		if(((float)rand()/RAND_MAX * rnd > 0.5) || rnd == -1) return moves[index];
 		swap(scores[index], scores[count-1]);
 		swap(moves[index], moves[count-1]);
 		count--;
@@ -401,10 +412,10 @@ pair<int, int> bestmove(ttt board, tttNN *player, double rnd){
 	return moves[rand()%(moves.size())];
 }
 
-vector<pair<int, int>> simulategame(tttNN *p1=NULL, tttNN *p2=NULL, double rnd = 0, double rnd1 = 1) {
+vector<pair<int, int>> simulategame(tttNN *p1=NULL, tttNN *p2=NULL, float rnd = 0, float rnd1 = 1) {
 	vector<pair<int, int>> history;
 	ttt board;
-	double count = 0;
+	float count = 0;
 	while(!board.end()){
 		pair<int, int> move(-1, -1);
 		if(board.getside() == 1 && p1 != NULL)
@@ -439,7 +450,7 @@ void gamestats(vector<vector<pair<int, int>>> &games, int player = 1){
 	cout << "draw percent: " << (float)100*stats[1]/n << endl;
 	cout << "loss percent: " << (float)100*stats[2]/n << endl;
 }
-void preparedata(vector<vector<pair<int, int>>> &data, vector<vector<double>>& positions, vector<Matrix<double>> &labels){
+void preparedata(vector<vector<pair<int, int>>> &data, vector<vector<float>>& positions, vector<Matrix<float>> &labels){
 	positions.clear();
 	labels.clear();
 	for(int i = 0; i < (int) data.size(); i++){	
@@ -448,11 +459,11 @@ void preparedata(vector<vector<pair<int, int>>> &data, vector<vector<double>>& p
 		for(int j = 0; j < m; j++){
 			int side = board.getside();
 			board.move(data[i][j].first, data[i][j].second);
-			vector<double> vecboard = board.retboard();
+			vector<float> vecboard = board.retboard();
 			positions.push_back(vecboard);
 		}
 		for(int j = 0; j < m; j++){
-			Matrix<double> l(3, 1);
+			Matrix<float> l(3, 1);
 			l(abs(board.end()-1)) = 1;
 			labels.push_back(l);
 		}
@@ -467,28 +478,27 @@ int main(){
 	tttNN network({9, 200, 125, 75, 25, 3}, 0.003);
 	network.addActivation<ReLU>({1, 2, 3, 4});
 	network.addActivation<Softmax>({5});
-	network.readNNfromfile(".\\weights.txt");
-	// vector<vector<pair<int, int>>> randomgames;
-	// for(int i = 0; i < 10000; i++){
-	// 	randomgames.push_back(simulategame(&network, &network, 0.6, 0));
-	// }
-	// vector<vector<double>> positions;
-	// vector<Matrix<double>> labels;
-	// preparedata(randomgames, positions, labels);
-	// network.trainNetwork(positions, labels, 10);
+	// network.readNNfromfile(".\\weights.txt");
+	vector<vector<pair<int, int>>> randomgames;
+	for(int i = 0; i < 10000; i++){
+		randomgames.push_back(simulategame());
+	}
+	vector<vector<float>> positions;
+	vector<Matrix<float>> labels;
+	preparedata(randomgames, positions, labels);
+	network.trainNetwork(positions, labels, 10);
 
 	vector<vector<pair<int, int>>> randomgamestest;
 	for(int i = 0; i < 1000; i++){
-		randomgamestest.push_back(simulategame(&network, NULL,1));
+		randomgamestest.push_back(simulategame(NULL, &network, -1));
 	}
 	gamestats(randomgamestest);
 
 	// ttt board;
-	// double counter = 1;
+	// float counter = 0;
 	// while(!board.end()){
 	// 	int x, y;
 	// 	pair<int, int> machinemove = bestmove(board, &network, counter);
-	// 	counter+= 10;
 	// 	board.move(machinemove.first, machinemove.second);
 	// 	board.print_ttt();
 	// 	if(board.end()) break;
@@ -496,7 +506,8 @@ int main(){
 		
 	// 	board.move(y, x);
 	// 	board.print_ttt();
-
+	// 	if(counter != -1) counter+=1;
+	// 	if(counter == 3) counter = -1;
 	// }
 
 
