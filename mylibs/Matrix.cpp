@@ -24,12 +24,14 @@ public:
 	int getrows() const;
 	int getcols() const;
 	int size() const;
+	std::vector<mtype> retvector();
 	mtype &operator()(int, int);
 	mtype operator()(int, int) const;
 	mtype &operator()(int);
 	mtype operator()(int) const;
 	Matrix operator* (const Matrix&);
 	Matrix tmult (const Matrix&);
+	mtype dotproduct (const Matrix&);
 	Matrix fastmult_vvt(const Matrix&);
 	Matrix fastmult_mv(const Matrix&);
 	Matrix operator* (mtype);
@@ -103,9 +105,14 @@ mtype Matrix<mtype>::operator()(int x) const {
 }
 
 template <class mtype>
+std::vector<mtype> Matrix<mtype>::retvector(){
+	return matrix;
+}
+
+template <class mtype>
 Matrix<mtype> Matrix<mtype>::operator*(const Matrix<mtype> &mtx){
 	assert(this->getcols() == mtx.getrows());
-	if(this->size() > 6000 && mtx.getcols() == 1)return this->fastmult_mv(mtx);
+	if(this->size() > 6000 && mtx.getcols() == 1 && this->getrows() != 1)return this->fastmult_mv(mtx);
 	Matrix<mtype> tmp(this->getrows(), mtx.getcols());
 	for(int i = 0; i < this->getrows(); i++){
 		for(int j = 0; j < mtx.getcols(); j++){
@@ -119,10 +126,21 @@ Matrix<mtype> Matrix<mtype>::operator*(const Matrix<mtype> &mtx){
 
 template <class mtype>
 Matrix<mtype> Matrix<mtype>::tmult(const Matrix<mtype> &mtx){
+	assert(this != &mtx);
 	t = !t;
 	Matrix<mtype> tmp = (*this) * mtx;
 	t = !t;
 	return tmp;
+}
+
+template <class mtype>
+mtype Matrix<mtype>::dotproduct(const Matrix<mtype> &mtx){
+	assert(this->getrows() == mtx.getrows() && this->getcols() == mtx.getcols());
+	mtype res = 0;
+	for(int i = 0; i < this->size(); i++){
+		res += (*this)(i) * mtx(i); 
+	}
+	return res;
 }
 
 template <class mtype>

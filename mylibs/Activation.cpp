@@ -25,8 +25,18 @@ public:
 		return tmp/(1+tmp);
 	}
 	float activationderivative (float a){
-		float tmp = activationfunc(a);
-		return tmp*(1-tmp);
+		return a*(1-a);
+	}
+};
+class fastSigmoid : public Activation{
+public:
+	fastSigmoid(const Matrix<float> &mtx) : Activation(mtx){}
+	float activationfunc(float a){
+		float tmp = exp(a);
+		return a/(2*(1+abs(a))) + 0.5;
+	}
+	float activationderivative (float a){
+		return a*(1-a);
 	}
 };
 
@@ -52,8 +62,9 @@ public:
 		float m = 0;
 		for(int i = 0; i < this->size(); i++) m = std::max(m, (mtx)(i));
 		for(int i = 0; i < this->size(); i++) sum += exp((mtx)(i) - m);
+		if(sum < 0) std::cout << "nan is happening" << std::endl;
 		for(int i = 0; i < this->size(); i++){
-			(*this)(i) = exp((mtx)(i)-m-log(sum));
+			(*this)(i) = exp((mtx)(i)-m-log(sum+1e-6));
 		}
 	}
 	void applyderivative(Matrix<float> &m){
